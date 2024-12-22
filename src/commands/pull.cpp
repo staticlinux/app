@@ -10,35 +10,33 @@ import log;
 
 export module pull;
 
-namespace
+struct Options
 {
-    struct Options
-    {
-        bool help{};
-    };
+    bool help{};
+};
 
-    Options parse_options(int &argc, const char **&argv)
+static Options parse_options(int &argc, const char **&argv)
+{
+    auto options = Options{};
+    while (argc && **argv == '-')
     {
-        auto options = Options{};
-        while (argc && **argv == '-')
+        if (!strcmp(*argv + 1, "h") || !strcmp(*argv + 1, "-help"))
         {
-            if (!strcmp(*argv + 1, "h") || !strcmp(*argv + 1, "-help"))
-            {
-                options.help = true;
-                --argc;
-                ++argv;
-            }
-            else
-            {
-                fatal_error("unknown option: {}", *argv);
-            }
+            options.help = true;
+            --argc;
+            ++argv;
         }
-        return options;
+        else
+        {
+            fatal_error("unknown option: {}", *argv);
+        }
     }
+    return options;
+}
 
-    void print_help()
-    {
-        fprintf(stdout, R"(Download app from staticlinux.org
+static void print_help()
+{
+    fprintf(stdout, R"(Download app from staticlinux.org
 Usage: app pull [OPTIONS] NAME/PATH:VERSION
 
 Options:
@@ -51,19 +49,18 @@ Parameters:
 
 For more information, please visit %s/commands/pull
 )",
-                DOC_BASE_LINK);
-    }
+            DOC_BASE_LINK);
+}
 
-    void pull(std::string name, std::string version, std::string filePath)
-    {
-        assert(!name.empty());
-        assert(!version.empty());
-        assert(!filePath.empty());
+static void pull(std::string name, std::string version, std::string filePath)
+{
+    assert(!name.empty());
+    assert(!version.empty());
+    assert(!filePath.empty());
 
-        auto arch = sizeof(void *) == 4 ? "x86" : "amd64";
-        auto downloadPath = std::format("{}/{}/{}/{}/{}", APP_DOWNLOAD_BASE_LINK, name, version, arch, filePath);
-        status("Pulling from {}", downloadPath);
-    }
+    auto arch = sizeof(void *) == 4 ? "x86" : "amd64";
+    auto downloadPath = std::format("{}/{}/{}/{}/{}", APP_DOWNLOAD_BASE_LINK, name, version, arch, filePath);
+    status("Pulling from {}", downloadPath);
 }
 
 export void pull(int argc, const char *argv[])
@@ -72,6 +69,7 @@ export void pull(int argc, const char *argv[])
     if (options.help)
     {
         print_help();
+        return;
     }
 
     if (argc-- == 0)

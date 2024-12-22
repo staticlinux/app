@@ -7,35 +7,33 @@ import pull;
 
 #define DOCS_BASE_LINK "https://docs.staticlinux.org/app"
 
-namespace
+struct Options
 {
-    struct Options
-    {
-        bool help{};
-    };
+    bool help{};
+};
 
-    Options parse_options(int &argc, const char **&argv)
+static Options parse_options(int &argc, const char **&argv)
+{
+    auto options = Options{};
+    while (argc && **argv == '-')
     {
-        auto options = Options{};
-        while (argc && **argv == '-')
+        if (!strcmp(*argv + 1, "h") || !strcmp(*argv + 1, "-help"))
         {
-            if (!strcmp(*argv + 1, "h") || !strcmp(*argv + 1, "-help"))
-            {
-                options.help = true;
-                --argc;
-                ++argv;
-            }
-            else
-            {
-                fatal_error("unknown option: {}", *argv);
-            }
+            options.help = true;
+            --argc;
+            ++argv;
         }
-        return options;
+        else
+        {
+            fatal_error("unknown option: {}", *argv);
+        }
     }
+    return options;
+}
 
-    void print_help()
-    {
-        fprintf(stdout, R"(StaticLinux app management tool
+static void print_help()
+{
+    fprintf(stdout, R"(StaticLinux app management tool
 Usage: app [OPTIONS] <command>
 
 Options:
@@ -46,9 +44,7 @@ Subcommands:
 
 For more information, please visit %s
 )",
-                DOC_BASE_LINK);
-    }
-
+            DOC_BASE_LINK);
 }
 
 int main(int argc, const char *argv[])
