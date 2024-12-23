@@ -1,30 +1,29 @@
 import consts;
 import log;
+import message_queue;
 import pull;
+import task;
 
+#include <coroutine>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 
 #define DOCS_BASE_LINK "https://docs.staticlinux.org/app"
 
-struct Options
-{
-    bool help{};
+struct Options {
+    bool help {};
 };
 
-static Options parse_options(int &argc, const char **&argv)
+static Options parse_options(int& argc, const char**& argv)
 {
-    auto options = Options{};
-    while (argc && **argv == '-')
-    {
-        if (!strcmp(*argv + 1, "h") || !strcmp(*argv + 1, "-help"))
-        {
+    auto options = Options {};
+    while (argc && **argv == '-') {
+        if (!strcmp(*argv + 1, "h") || !strcmp(*argv + 1, "-help")) {
             options.help = true;
             --argc;
             ++argv;
-        }
-        else
-        {
+        } else {
             fatal_error("unknown option: {}", *argv);
         }
     }
@@ -44,33 +43,37 @@ Subcommands:
 
 For more information, please visit %s
 )",
-            DOC_BASE_LINK);
+        DOC_BASE_LINK);
 }
 
-int main(int argc, const char *argv[])
+task_t<int> main_async(int argc, const char* argv[])
 {
     --argc;
     ++argv;
 
     auto options = parse_options(argc, argv);
-    if (options.help)
-    {
+    if (options.help) {
         print_help();
-        return 0;
+        co_return 0;
     }
 
-    if (argc == 0)
-    {
+    if (argc == 0) {
         fatal_error("command is required");
     }
 
-    if (!strcmp(*argv, "pull"))
-    {
-        pull(--argc, ++argv);
-    }
-    else
-    {
+    if (!strcmp(*argv, "pull")) {
+        co_await pull_async(--argc, ++argv);
+    } else {
         fatal_error("unknown command: {}", *argv);
     }
-    return 0;
+    co_return 0;
+}
+
+int main(int argc, const char* argv[])
+{
+    try {
+        return message_queue_t::current().wait(main_async(argc, argv));
+    } catch (const std::exception& ex) {
+        fatal_error("{}", ex.what());
+    }
 }
