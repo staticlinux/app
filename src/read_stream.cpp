@@ -12,9 +12,9 @@ export module read_stream;
 import message_queue;
 import task;
 
-task_t<std::vector<uint8_t>> read_async(int fd, size_t atMost)
+static task_t<std::vector<uint8_t>> read_async_at_most(int fd, size_t at_most)
 {
-    std::vector<uint8_t> buffer(atMost);
+    std::vector<uint8_t> buffer(at_most);
     while (true) {
         auto num = read(fd, buffer.data(), buffer.size());
         if (num == 0) {
@@ -39,10 +39,36 @@ task_t<std::vector<uint8_t>> read_async(int fd, size_t atMost)
 }
 
 export class read_stream_t {
+    const int INVALID_FD = -1;
+
 public:
-    read_stream_t(int fd)
+    explicit read_stream_t(int fd)
         : m_fd { fd }
     {
+    }
+
+    read_stream_t(const read_stream_t&) = delete;
+
+    read_stream_t(read_stream_t&& r)
+        : m_fd { r.m_fd }
+        , m_buffer { std::move(r.m_buffer) }
+    {
+        r.m_fd = INVALID_FD;
+    }
+
+    ~read_stream_t()
+    {
+        close();
+    }
+
+    read_stream_t& operator=(const read_stream_t&) = delete;
+
+    read_stream_t& operator=(read_stream_t&& r)
+    {
+        close();
+        m_fd = r.m_fd;
+        m_buffer = std::move(r.m_buffer);
+        r.m_fd = INVALID_FD;
     }
 
     task_t<std::string> read_line_async()
@@ -66,7 +92,7 @@ public:
             }
 
             // no '\n' in the buffer, try to read more from the input.
-            auto more = co_await ::read_async(m_fd, 1024);
+            auto more = co_await read_async_at_most(m_fd, 1024);
             if (more.empty()) {
                 // No more data.
                 throw std::runtime_error { "connection is closed" };
@@ -82,13 +108,12 @@ public:
         if (m_buffer.size() >= size) {
             auto data = std::vector<uint8_t> { m_buffer.begin(), m_buffer.begin() + size };
             m_buffer = std::vector<uint8_t> { m_buffer.begin() + size, m_buffer.end() };
-            std::swap(data, m_buffer);
             co_return data;
         } else {
             auto data = std::move(m_buffer);
             auto remain = size - data.size();
             while (remain) {
-                auto more = co_await ::read_async(m_fd, remain);
+                auto more = co_await read_async_at_most(m_fd, remain);
                 if (more.empty()) {
                     // No more data.
                     throw std::runtime_error { "connection is closed" };
@@ -100,7 +125,20 @@ public:
         }
     }
 
+    int native_handle() const
+    {
+        return m_fd;
+    }
+
 private:
-    int m_fd {};
+    void close()
+    {
+        if (m_fd >= 0) {
+            ::close(m_fd);
+            m_fd = INVALID_FD;
+        }
+    }
+
+    int m_fd { INVALID_FD };
     std::vector<uint8_t> m_buffer {};
 };

@@ -133,13 +133,15 @@ task_t<std::unordered_multimap<std::string, std::string>> http_read_headers_asyn
     co_return header;
 }
 
-export task_t<std::vector<uint8_t>> http_get_async(std::string_view url)
+read_stream_t http_open(const std::string& host, uint16_t port)
 {
     // create socket.
     auto sd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (sd < 0) {
         throw std::system_error { errno, std::system_category(), "create socket failed" };
     }
+
+    auto read_stream = read_stream_t { sd };
 
     // reuse addr.
     int yes = 1;
@@ -154,16 +156,11 @@ export task_t<std::vector<uint8_t>> http_get_async(std::string_view url)
     }
 
     // Fill remote address.
-    auto uri = parse_uri(url);
-    if (uri.schema != "http") {
-        throw std::runtime_error { "only support http" };
-    }
-
     sockaddr_in addr {
         .sin_family = AF_INET,
-        .sin_port = htons(uri.port),
+        .sin_port = htons(port),
     };
-    if (auto hent = gethostbyname(uri.host.c_str()); !hent) {
+    if (auto hent = gethostbyname(host.c_str()); !hent) {
         throw std::system_error { h_errno, std::system_category(), "gethostbyname failed" };
     } else if (auto pAddrList = (in_addr**)hent->h_addr_list; *pAddrList) {
         addr.sin_addr = **pAddrList;
@@ -177,27 +174,59 @@ export task_t<std::vector<uint8_t>> http_get_async(std::string_view url)
         throw std::system_error { errno, std::system_category(), "connect to failed" };
     }
 
+    return read_stream;
+}
+
+export task_t<std::pair<std::unordered_multimap<std::string, std::string>, read_stream_t>> http_get_header_async(std::string_view url, const std::unordered_multimap<std::string, std::string>& headers)
+{
+    auto uri = parse_uri(url);
+    if (uri.schema != "http") {
+        throw std::runtime_error { "only support http" };
+    }
+
+    auto read_stream = http_open(uri.host, uri.port);
+
+    std::string request_headers = std::format("GET {} HTTP/1.1\r\n"
+                                              "Host: {}\r\n"
+                                              "User-Agent: staticlinux.org/app\r\n"
+                                              "Accept: */*\r\n",
+        uri.path, uri.host);
+
+    // Write customer headers.
+    for (const auto& header : headers) {
+        request_headers += std::format("{}: {}\r\n", header.first, header.second);
+    }
+    request_headers += "\r\n";
+
     // Write.
-    co_await write_async(sd, std::format("GET {} HTTP/1.1\r\n"
-                                         "Host: {}\r\n"
-                                         "User-Agent: staticlinux.org/app\r\n"
-                                         "Accept: */*\r\n"
-                                         "\r\n",
-                                 uri.path, uri.host));
+    co_await write_async(read_stream.native_handle(), request_headers);
+
+    // Header end.
+    co_await write_async(read_stream.native_handle(), "\r\n");
 
     // Read status code.
-    auto read_stream = read_stream_t { sd };
     auto status = co_await http_read_status_line_async(read_stream);
-    if (status != 200) {
+    if (status < 200 || status > 299) {
         throw std::runtime_error { std::format("server return error: {}", status) };
     }
 
     // Read headers.
-    auto headers = co_await http_read_headers_async(read_stream);
+    auto response_headers = co_await http_read_headers_async(read_stream);
+    co_return std::make_pair(std::move(response_headers), std::move(read_stream));
+}
+
+export task_t<std::pair<std::unordered_multimap<std::string, std::string>, read_stream_t>> http_get_header_async(std::string_view url)
+{
+    return http_get_header_async(url, /*headers=*/ {});
+}
+
+export task_t<std::vector<uint8_t>> http_get_async(std::string_view url, const std::unordered_multimap<std::string, std::string>& headers)
+{
+    auto [response_headers, read_stream] = co_await http_get_header_async(url, headers);
 
     // Get content-length.
-    auto it = headers.find("content-length");
-    if (it == headers.end()) {
+    auto it = response_headers.find("content-length");
+    if (it == response_headers.end()) {
         throw std::runtime_error { std::format("no content-length header") };
     }
     auto content_length = atoi(it->second.c_str());
@@ -206,4 +235,9 @@ export task_t<std::vector<uint8_t>> http_get_async(std::string_view url)
     }
 
     co_return co_await read_stream.read_async(content_length);
+}
+
+export task_t<std::vector<uint8_t>> http_get_async(std::string_view url)
+{
+    return http_get_async(url, {});
 }
