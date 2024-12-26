@@ -8,6 +8,7 @@ target_sources(app PUBLIC FILE_SET CXX_MODULES FILES
     log.cpp
     lzma.cpp
     message_queue.cpp
+    md5.cpp
     read_stream.cpp
     string_utils.cpp
     task_s.cpp

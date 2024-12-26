@@ -13,6 +13,7 @@ import consts;
 import http_client;
 import log;
 import lzma;
+import md5;
 import read_stream;
 import task;
 
@@ -88,6 +89,7 @@ static task_t<Metadata> pull_metadata_async(read_stream_t& read_stream, size_t m
             throw std::runtime_error { std::format("Bad file item: {}", line) };
         }
         metadata.files.push_back({
+            .md5 = res[1].str(),
             .size = (size_t)atoi(res[4].str().c_str()),
             .filepath = std::move(res[5].str()),
         });
@@ -126,8 +128,10 @@ static task_t<void> pull_async(std::string name, std::string version, std::strin
     // Find out the file item.
     size_t firstByteOffset { PACKAGE_HEADER_LEN + metadata_file_len };
     size_t lastByteOffset {};
+    const Metadata::File* pFile {};
     for (const auto& file : metadata.files) {
         if (file.filepath == filepath) {
+            pFile = &file;
             lastByteOffset = firstByteOffset + file.size - 1;
             break;
         }
@@ -145,7 +149,16 @@ static task_t<void> pull_async(std::string name, std::string version, std::strin
     trace("Decompress content");
     auto rawdata = lzma_decompress(data);
     status("Size: {}", rawdata.size());
-    status("(TODO) MD5: f10b404d8f471ec1ac7f26f838f1d259");
+
+    // Caculate md5.
+    trace("Verify md5");
+    auto md5 = md5_string(rawdata);
+    status("MD5: {}", md5);
+
+    // Make sure md5 is the same.
+    if (md5 != pFile->md5) {
+        throw std::runtime_error { "MD5 doesn't match please contact admin@staticlinux.org" };
+    }
 
     // save
     auto home = getenv("HOME");
