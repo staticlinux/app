@@ -18,4 +18,5 @@ add_compile_options(-g)
 
 include_directories(.)
 
+add_subdirectory(cppl)
 add_subdirectory(src)

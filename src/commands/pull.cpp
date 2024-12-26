@@ -10,12 +10,15 @@ module;
 #include <yaml-cpp/yaml.h>
 
 import consts;
+import cppl;
 import http_client;
 import log;
 import lzma;
 import md5;
 import read_stream;
-import task;
+
+using cppl::task_state_t;
+using cppl::task_t;
 
 export module pull;
 

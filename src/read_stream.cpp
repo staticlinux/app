@@ -9,8 +9,11 @@ module;
 #include <vector>
 
 export module read_stream;
+import cppl;
 import message_queue;
-import task;
+
+using cppl::task_state_t;
+using cppl::task_t;
 
 static task_t<std::vector<uint8_t>> read_async_at_most(int fd, size_t at_most)
 {
@@ -69,6 +72,7 @@ public:
         m_fd = r.m_fd;
         m_buffer = std::move(r.m_buffer);
         r.m_fd = INVALID_FD;
+        return *this;
     }
 
     task_t<std::string> read_line_async()

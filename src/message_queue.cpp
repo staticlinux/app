@@ -11,8 +11,11 @@ module;
 #include <unistd.h>
 
 export module message_queue;
+import cppl;
 import log;
-import task;
+
+using cppl::task_state_t;
+using cppl::task_t;
 
 export class message_queue_t {
 public:

@@ -1,8 +1,8 @@
 import consts;
+import cppl;
 import log;
 import message_queue;
 import pull;
-import task;
 
 #include <coroutine>
 #include <cstdio>
@@ -10,6 +10,9 @@ import task;
 #include <exception>
 
 #define DOCS_BASE_LINK "https://docs.staticlinux.org/app"
+
+using cppl::task_state_t;
+using cppl::task_t;
 
 struct Options {
     bool help {};

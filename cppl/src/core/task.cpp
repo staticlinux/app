@@ -4,7 +4,9 @@ module;
 #include <coroutine>
 #include <future>
 
-export module task;
+export module cppl.core:task;
+
+namespace cppl {
 
 export template <typename T>
 class task_state_t {
@@ -202,3 +204,5 @@ struct task_t<void> {
 private:
     std::shared_ptr<task_state_t<void>> m_state {};
 };
+
+}

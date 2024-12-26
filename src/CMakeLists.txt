@@ -11,9 +11,9 @@ target_sources(app PUBLIC FILE_SET CXX_MODULES FILES
     md5.cpp
     read_stream.cpp
     string_utils.cpp
-    task_s.cpp
 )
 target_link_libraries(app
+    cppl
     yaml-cpp::yaml-cpp
     lzma
 )

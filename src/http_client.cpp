@@ -15,10 +15,13 @@ module;
 #include <vector>
 
 export module http_client;
+import cppl;
 import message_queue;
 import read_stream;
 import string_utils;
-import task;
+
+using cppl::task_state_t;
+using cppl::task_t;
 
 struct uri_view_t {
     std::string schema;
