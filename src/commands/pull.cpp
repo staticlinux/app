@@ -118,12 +118,12 @@ static task_t<void> pull_async(std::string name, std::string version, std::strin
     auto package_file_header = co_await read_stream.read_async(PACKAGE_HEADER_LEN);
 
     // Verify magic number
-    if (memcmp(package_file_header.data(), "\x19\x82SLP", 5)) {
+    if (memcmp(package_file_header.data(), "\xF1SLP\x00", 5)) {
         throw std::runtime_error { "Invalid package file" };
     }
 
     // Get metadata file length
-    auto metadata_file_len = *(uint32_t*)(package_file_header.data() + 4) >> 8;
+    auto metadata_file_len = *(uint32_t*)(package_file_header.data() + 4) & ~0xff;
 
     // Read metadata
     auto metadata = co_await pull_metadata_async(read_stream, metadata_file_len);
