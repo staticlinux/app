@@ -7,6 +7,7 @@ module;
 #include <filesystem>
 #include <format>
 #include <regex>
+#include <sys/stat.h>
 #include <yaml-cpp/yaml.h>
 
 import consts;
@@ -70,6 +71,36 @@ For more information, please visit %s/commands/pull
         DOC_BASE_LINK);
 }
 
+static int parse_string_permission(std::string_view permission)
+{
+    if (permission.size() != 9) {
+        throw std::runtime_error { std::format("bad permission string: {}", permission) };
+    }
+
+    int mode {};
+    for (int i = 0; i < 3; ++i) {
+        mode <<= 1;
+        if (auto c = permission[i * 3]; c == 'r') {
+            mode |= 1;
+        } else if (c != '-') {
+            throw std::runtime_error { std::format("bad permission string: {}", permission) };
+        }
+        mode <<= 1;
+        if (auto c = permission[i * 3 + 1]; c == 'w') {
+            mode |= 1;
+        } else if (c != '-') {
+            throw std::runtime_error { std::format("bad permission string: {}", permission) };
+        }
+        mode <<= 1;
+        if (auto c = permission[i * 3 + 2]; c == 'x') {
+            mode |= 1;
+        } else if (c != '-') {
+            throw std::runtime_error { std::format("bad permission string: {}", permission) };
+        }
+    }
+    return mode;
+}
+
 static task_t<Metadata> pull_metadata_async(read_stream_t& read_stream, size_t metadata_file_len)
 {
     trace("Download metadata ...");
@@ -93,6 +124,7 @@ static task_t<Metadata> pull_metadata_async(read_stream_t& read_stream, size_t m
         }
         metadata.files.push_back({
             .md5 = res[1].str(),
+            .mode = parse_string_permission(res[2].str()),
             .size = (size_t)atoi(res[4].str().c_str()),
             .filepath = std::move(res[5].str()),
         });
@@ -185,8 +217,23 @@ static task_t<void> pull_async(std::string name, std::string version, std::strin
     }
     status("Save to ~/.staticlinux/{}/{}", name, filepath);
 
-    // TODO: add symbol
-    status("(TODO): Add symbol link: ~/.staticlinux/bin/{}", std::filesystem::path { filepath }.filename().c_str());
+    // change mode
+    if (chmod(path_str.c_str(), pFile->mode) < 0) {
+        throw std::system_error { errno, std::system_category(), "chmod failed" };
+    }
+
+    // add symbol if this file is executable
+    if (pFile->mode & 0111) {
+        auto symbolLinkName = std::filesystem::path { filepath }.filename().string();
+        status("Add symbol link: ~/.staticlinux/bin/{}", symbolLinkName);
+        auto binpath = std::filesystem::path { home } / ".staticlinux" / "bin";
+        if (!std::filesystem::exists(binpath) && !std::filesystem::create_directories(binpath)) {
+            throw std::runtime_error { std::format("Can't create path: {}", binpath.string()) };
+        }
+        if (symlink(path_str.c_str(), (binpath / symbolLinkName).c_str()) < 0) {
+            throw std::system_error { errno, std::system_category(), "symlink failed" };
+        }
+    }
 }
 
 export task_t<void> pull_async(int argc, const char* argv[])
